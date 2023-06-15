@@ -126,10 +126,10 @@ impl BinaryOp {
             Self::Assign => Precedence::Assign,
         }
     }
-    pub fn peek_precedence(input: &TokenStream) -> Precedence {
+    pub fn peek_precedence(input: &TokenStream) -> Option<Precedence> {
         match Self::peek(input) {
-            Ok(op) => op.precedence(),
-            Err(_) => Precedence::Any,
+            Ok(op) => Some(op.precedence()),
+            Err(_) => None,
         }
     }
     pub fn is_right(&self) -> bool {
@@ -176,15 +176,14 @@ fn parse_expr(input: &mut TokenStream) -> ParseResult<Expr> {
 }
 
 fn parse_rexpr(input: &mut TokenStream, mut lhs: Expr, base: Precedence) -> ParseResult<Expr> {
-    loop {
-        let op = match input.parse::<BinaryOp>() {
-            Ok(op) if op.precedence() >= base => op,
-            _ => break,
-        };
+    while let Some(precedence) = BinaryOp::peek_precedence(input) {
+        if precedence < base {
+            break;
+        }
+        let op = input.parse::<BinaryOp>()?;
         let precedence = op.precedence();
         let mut rhs = parse_unary(input)?;
-        loop {
-            let next = BinaryOp::peek_precedence(input);
+        while let Some(next) = BinaryOp::peek_precedence(input) {
             if next > precedence || next == precedence && op.is_right() {
                 rhs = parse_rexpr(input, rhs, next)?;
             } else {
